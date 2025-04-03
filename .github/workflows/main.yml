@@ -1,33 +1,59 @@
+
 name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-
-    - name: Set up Java
-      uses: actions/setup-java@v3
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
       with:
-        java-version: '11'
-
-    - name: Build with Gradle
-      run: ./gradlew assembleRelease
-
-    - name: List build output for debugging
-      run: ls -R app/build/outputs/apk/release
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git python3-dev ffmpeg \
+          libssl-dev libffi-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev \
+          libjpeg-dev libpng-dev openjdk-11-jdk
+        pip install --upgrade pip
+        pip install buildozer cython==0.29.19 virtualenv
+    
+    - name: Prepare buildozer.spec
+      run: |
+        echo "[app]" > buildozer.spec
+        echo "title = BTC Wallet Generator" >> buildozer.spec
+        echo "package.name = btcwalletgenerator" >> buildozer.spec
+        echo "package.domain = org.cr0mb" >> buildozer.spec
+        echo "source.dir = ." >> buildozer.spec
+        echo "source.include_exts = py,png,jpg,kv,atlas" >> buildozer.spec
+        echo "version = 0.1" >> buildozer.spec
+        echo "requirements = python3,kivy,requests,ecdsa,base58,hashlib,bech32,mnemonic,colorama" >> buildozer.spec
+        echo "orientation = portrait" >> buildozer.spec
+        echo "fullscreen = 0" >> buildozer.spec
+        echo "android.permissions = INTERNET" >> buildozer.spec
+        echo "android.api = 30" >> buildozer.spec
+        echo "android.minapi = 21" >> buildozer.spec
+        echo "android.sdk = 24" >> buildozer.spec
+        echo "android.ndk = 19b" >> buildozer.spec
+        echo "android.arch = armeabi-v7a" >> buildozer.spec
+    
+    - name: Build APK
+      run: |
+        buildozer -v android debug
+        mkdir dist
+        cp bin/*.apk dist/
+    
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v2
       with:
-        name: android-apk
-        path: app/build/outputs/apk/release/app-release.apk
+        name: btc-wallet-generator
+        path: dist/*.apk
